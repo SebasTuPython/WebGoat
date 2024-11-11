@@ -23,9 +23,9 @@
 package org.owasp.webgoat.lessons.sqlinjection.introduction;
 
 import java.sql.Connection;
+import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
-import java.sql.Statement;
 import org.owasp.webgoat.container.LessonDataSource;
 import org.owasp.webgoat.container.assignments.AssignmentEndpoint;
 import org.owasp.webgoat.container.assignments.AssignmentHints;
@@ -61,17 +61,17 @@ public class SqlInjectionLesson10 extends AssignmentEndpoint {
 
   protected AttackResult injectableQueryAvailability(String action) {
     StringBuilder output = new StringBuilder();
-    String query = "SELECT * FROM access_log WHERE action LIKE '%" + action + "%'";
+    String query = "SELECT * FROM access_log WHERE action LIKE ?";
 
     try (Connection connection = dataSource.getConnection()) {
-      try {
-        Statement statement =
-            connection.createStatement(
-                ResultSet.TYPE_SCROLL_INSENSITIVE, ResultSet.CONCUR_READ_ONLY);
-        ResultSet results = statement.executeQuery(query);
+      try (PreparedStatement statement = connection.prepareStatement(query, 
+           ResultSet.TYPE_SCROLL_INSENSITIVE, ResultSet.CONCUR_READ_ONLY)) {
+        
+        statement.setString(1, "%" + action + "%"); // Bind the parameter safely
 
-        if (results.getStatement() != null) {
-          results.first();
+        ResultSet results = statement.executeQuery();
+
+        if (results.first()) {
           output.append(SqlInjectionLesson8.generateTable(results));
           return failed(this)
               .feedback("sql-injection.10.entries")
@@ -109,15 +109,12 @@ public class SqlInjectionLesson10 extends AssignmentEndpoint {
   }
 
   private boolean tableExists(Connection connection) {
-    try {
-      Statement stmt =
-          connection.createStatement(ResultSet.TYPE_SCROLL_INSENSITIVE, ResultSet.CONCUR_READ_ONLY);
+    try (Statement stmt = connection.createStatement(
+         ResultSet.TYPE_SCROLL_INSENSITIVE, ResultSet.CONCUR_READ_ONLY)) {
       ResultSet results = stmt.executeQuery("SELECT * FROM access_log");
-      int cols = results.getMetaData().getColumnCount();
-      return (cols > 0);
+      return results.getMetaData().getColumnCount() > 0;
     } catch (SQLException e) {
-      String errorMsg = e.getMessage();
-      if (errorMsg.contains("object not found: ACCESS_LOG")) {
+      if (e.getMessage().contains("object not found: ACCESS_LOG")) {
         return false;
       } else {
         System.err.println(e.getMessage());
