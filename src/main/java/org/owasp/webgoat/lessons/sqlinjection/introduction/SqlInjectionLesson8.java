@@ -62,44 +62,36 @@ public class SqlInjectionLesson8 extends AssignmentEndpoint {
 
   protected AttackResult injectableQueryConfidentiality(String name, String auth_tan) {
     StringBuilder output = new StringBuilder();
-    String query =
-        "SELECT * FROM employees WHERE last_name = '"
-            + name
-            + "' AND auth_tan = '"
-            + auth_tan
-            + "'";
+    String query = "SELECT * FROM employees WHERE last_name = ? AND auth_tan = ?";
 
     try (Connection connection = dataSource.getConnection()) {
-      try {
-        Statement statement =
-            connection.createStatement(
-                ResultSet.TYPE_SCROLL_INSENSITIVE, ResultSet.CONCUR_UPDATABLE);
-        log(connection, query);
-        ResultSet results = statement.executeQuery(query);
+      try (PreparedStatement statement = connection.prepareStatement(query, ResultSet.TYPE_SCROLL_INSENSITIVE, ResultSet.CONCUR_UPDATABLE)) {
+        statement.setString(1, name);
+        statement.setString(2, auth_tan);
 
-        if (results.getStatement() != null) {
-          if (results.first()) {
-            output.append(generateTable(results));
-            results.last();
+        log(connection, query, name, auth_tan);
+        ResultSet results = statement.executeQuery();
 
-            if (results.getRow() > 1) {
-              // more than one record, the user succeeded
-              return success(this)
-                  .feedback("sql-injection.8.success")
-                  .output(output.toString())
-                  .build();
-            } else {
-              // only one record
-              return failed(this).feedback("sql-injection.8.one").output(output.toString()).build();
-            }
+        if (results.first()) {
+          output.append(generateTable(results));
+          results.last();
 
+          if (results.getRow() > 1) {
+            // more than one record, the user succeeded
+            return success(this)
+                .feedback("sql-injection.8.success")
+                .output(output.toString())
+                .build();
           } else {
-            // no results
-            return failed(this).feedback("sql-injection.8.no.results").build();
+            // only one record
+            return failed(this).feedback("sql-injection.8.one").output(output.toString()).build();
           }
+
         } else {
-          return failed(this).build();
+          // no results
+          return failed(this).feedback("sql-injection.8.no.results").build();
         }
+
       } catch (SQLException e) {
         return failed(this)
             .output("<br><span class='feedback-negative'>" + e.getMessage() + "</span>")
@@ -122,7 +114,7 @@ public class SqlInjectionLesson8 extends AssignmentEndpoint {
 
     if (results.next()) {
       table.append("<tr>");
-      for (int i = 1; i < (numColumns + 1); i++) {
+      for (int i = 1; i <= numColumns; i++) {
         table.append("<th>" + resultsMetaData.getColumnName(i) + "</th>");
       }
       table.append("</tr>");
@@ -130,7 +122,7 @@ public class SqlInjectionLesson8 extends AssignmentEndpoint {
       results.beforeFirst();
       while (results.next()) {
         table.append("<tr>");
-        for (int i = 1; i < (numColumns + 1); i++) {
+        for (int i = 1; i <= numColumns; i++) {
           table.append("<td>" + results.getString(i) + "</td>");
         }
         table.append("</tr>");
@@ -141,21 +133,20 @@ public class SqlInjectionLesson8 extends AssignmentEndpoint {
     }
 
     table.append("</table>");
-    return (table.toString());
+    return table.toString();
   }
 
-  public static void log(Connection connection, String action) {
-    action = action.replace('\'', '"');
+  public static void log(Connection connection, String query, String name, String auth_tan) {
     Calendar cal = Calendar.getInstance();
     SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
     String time = sdf.format(cal.getTime());
 
-    String logQuery =
-        "INSERT INTO access_log (time, action) VALUES ('" + time + "', '" + action + "')";
+    String logQuery = "INSERT INTO access_log (time, action) VALUES (?, ?)";
 
-    try {
-      Statement statement = connection.createStatement(TYPE_SCROLL_SENSITIVE, CONCUR_UPDATABLE);
-      statement.executeUpdate(logQuery);
+    try (PreparedStatement statement = connection.prepareStatement(logQuery)) {
+      statement.setString(1, time);
+      statement.setString(2, "Executed query: " + query.replace("?", "%s").formatted(name, auth_tan));
+      statement.executeUpdate();
     } catch (SQLException e) {
       System.err.println(e.getMessage());
     }
