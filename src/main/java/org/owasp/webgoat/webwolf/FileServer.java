@@ -73,7 +73,7 @@ public class FileServer {
 
   @RequestMapping(
       path = "/file-server-location",
-      consumes = ALL_VALUE,
+      consumes = MediaType.ALL_VALUE,
       produces = MediaType.TEXT_PLAIN_VALUE)
   @ResponseBody
   public String getFileLocation() {
@@ -86,25 +86,42 @@ public class FileServer {
       throws IOException {
     var username = authentication.getName();
     var destinationDir = new File(fileLocation, username);
-    destinationDir.mkdirs();
-    // DO NOT use multipartFile.transferTo(), see
-    // https://stackoverflow.com/questions/60336929/java-nio-file-nosuchfileexception-when-file-transferto-is-called
+    
+    // Create directory for user files if it does not exist
+    if (!destinationDir.exists() && !destinationDir.mkdirs()) {
+      throw new IOException("Failed to create directory: " + destinationDir.getAbsolutePath());
+    }
+
+    // Validate filename to avoid path traversal attacks
+    String originalFilename = multipartFile.getOriginalFilename();
+    if (originalFilename == null || originalFilename.contains("..") || originalFilename.contains("/")) {
+      throw new IllegalArgumentException("Invalid file name");
+    }
+
+    // Save file
     try (InputStream is = multipartFile.getInputStream()) {
-      var destinationFile = destinationDir.toPath().resolve(multipartFile.getOriginalFilename());
+      var destinationFile = destinationDir.toPath().resolve(originalFilename).normalize();
+      
+      // Ensure the resolved path is within the user's directory
+      if (!destinationFile.startsWith(destinationDir.toPath())) {
+        throw new SecurityException("Invalid file path detected");
+      }
+
       Files.deleteIfExists(destinationFile);
       Files.copy(is, destinationFile);
     }
-    log.debug("File saved to {}", new File(destinationDir, multipartFile.getOriginalFilename()));
+
+    log.debug("File saved to {}", new File(destinationDir, originalFilename));
 
     return new ModelAndView(
         new RedirectView("files", true),
-        new ModelMap().addAttribute("uploadSuccess", "File uploaded successful"));
+        new ModelMap().addAttribute("uploadSuccess", "File uploaded successfully"));
   }
 
   @GetMapping(value = "/files")
   public ModelAndView getFiles(
       HttpServletRequest request, Authentication authentication, TimeZone timezone) {
-    String username = (null != authentication) ? authentication.getName() : "anonymous";
+    String username = (authentication != null) ? authentication.getName() : "anonymous";
     File destinationDir = new File(fileLocation, username);
 
     ModelAndView modelAndView = new ModelAndView();
@@ -112,8 +129,8 @@ public class FileServer {
     File changeIndicatorFile = new File(destinationDir, username + "_changed");
     if (changeIndicatorFile.exists()) {
       modelAndView.addObject("uploadSuccess", request.getParameter("uploadSuccess"));
+      changeIndicatorFile.delete();
     }
-    changeIndicatorFile.delete();
 
     record UploadedFile(String name, String size, String link, String creationTime) {}
 
@@ -130,7 +147,7 @@ public class FileServer {
 
     modelAndView.addObject(
         "files",
-        uploadedFiles.stream().sorted(comparing(UploadedFile::creationTime).reversed()).toList());
+        uploadedFiles.stream().sorted(Comparator.comparing(UploadedFile::creationTime).reversed()).toList());
     modelAndView.addObject("webwolf_url", "http://" + server + ":" + port + contextPath);
     return modelAndView;
   }
