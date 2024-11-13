@@ -80,8 +80,10 @@ public class FileServer {
   public ModelAndView importFile(
       @RequestParam("file") MultipartFile multipartFile, Authentication authentication)
       throws IOException {
-    var username = authentication.getName();
-    var userDirectory = Path.of(fileLocation, username);
+    
+    // Obtener un identificador seguro para el directorio del usuario
+    String userDirectoryId = getUserDirectoryId(authentication);
+    var userDirectory = Path.of(fileLocation, userDirectoryId);
 
     if (!Files.exists(userDirectory)) {
       Files.createDirectories(userDirectory);
@@ -113,12 +115,15 @@ public class FileServer {
   @GetMapping(value = "/files")
   public ModelAndView getFiles(
       HttpServletRequest request, Authentication authentication, TimeZone timezone) {
-    String username = (authentication != null) ? authentication.getName() : "anonymous";
-    var userDirectory = Path.of(fileLocation, username);
+    
+    // Obtener un identificador seguro para el directorio del usuario
+    String userDirectoryId = getUserDirectoryId(authentication);
+    var userDirectory = Path.of(fileLocation, userDirectoryId);
 
     ModelAndView modelAndView = new ModelAndView();
     modelAndView.setViewName("files");
-    var changeIndicatorFile = userDirectory.resolve(username + "_changed").toFile();
+
+    var changeIndicatorFile = userDirectory.resolve("change_indicator").toFile();
     if (changeIndicatorFile.exists()) {
       modelAndView.addObject("uploadSuccess", request.getParameter("uploadSuccess"));
       changeIndicatorFile.delete();
@@ -131,7 +136,7 @@ public class FileServer {
     if (files != null) {
       for (File file : files) {
         String size = FileUtils.byteCountToDisplaySize(file.length());
-        String link = String.format("files/%s/%s", username, file.getName());
+        String link = String.format("files/%s/%s", userDirectoryId, file.getName());
         uploadedFiles.add(
             new UploadedFile(file.getName(), size, link, getCreationTime(timezone, file)));
       }
@@ -152,5 +157,10 @@ public class FileServer {
     } catch (IOException e) {
       return "unknown";
     }
+  }
+
+  // Método para obtener un identificador seguro para el directorio del usuario
+  private String getUserDirectoryId(Authentication authentication) {
+    return (authentication != null) ? "user_" + authentication.getName().hashCode() : "anonymous";
   }
 }
