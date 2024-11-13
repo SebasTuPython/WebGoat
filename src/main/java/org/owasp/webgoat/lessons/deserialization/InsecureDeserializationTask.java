@@ -19,15 +19,12 @@
  *
  * Source for this application is maintained at https://github.com/WebGoat/WebGoat, a repository for free software projects.
  */
-
 package org.owasp.webgoat.lessons.deserialization;
 
-import java.io.ByteArrayInputStream;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.IOException;
-import java.io.InvalidClassException;
-import java.io.ObjectInputStream;
 import java.util.Base64;
-import org.dummy.insecure.framework.VulnerableTaskHolder;
 import org.owasp.webgoat.container.assignments.AssignmentEndpoint;
 import org.owasp.webgoat.container.assignments.AssignmentHints;
 import org.owasp.webgoat.container.assignments.AttackResult;
@@ -44,42 +41,46 @@ import org.springframework.web.bind.annotation.RestController;
 })
 public class InsecureDeserializationTask extends AssignmentEndpoint {
 
+  private final ObjectMapper objectMapper = new ObjectMapper();
+
   @PostMapping("/InsecureDeserialization/task")
   @ResponseBody
-  public AttackResult completed(@RequestParam String token) throws IOException {
-    String b64token;
+  public AttackResult completed(@RequestParam String token) {
     long before;
     long after;
     int delay;
 
-    b64token = token.replace('-', '+').replace('_', '/');
+    try {
+      String jsonString = new String(Base64.getDecoder().decode(token));
+      JsonNode jsonNode = objectMapper.readTree(jsonString);
 
-    try (ObjectInputStream ois =
-        new ObjectInputStream(new ByteArrayInputStream(Base64.getDecoder().decode(b64token)))) {
-      before = System.currentTimeMillis();
-      Object o = ois.readObject();
-      if (!(o instanceof VulnerableTaskHolder)) {
-        if (o instanceof String) {
-          return failed(this).feedback("insecure-deserialization.stringobject").build();
-        }
-        return failed(this).feedback("insecure-deserialization.wrongobject").build();
+      if (!jsonNode.has("taskId") || !jsonNode.has("taskData")) {
+        return failed(this).feedback("insecure-deserialization.invaliddata").build();
       }
+
+      before = System.currentTimeMillis();
+
+      String taskId = jsonNode.get("taskId").asText();
+      String taskData = jsonNode.get("taskData").asText();
+
+      if (!isValidTask(taskId, taskData)) {
+        return failed(this).feedback("insecure-deserialization.invaliddata").build();
+      }
+
       after = System.currentTimeMillis();
-    } catch (InvalidClassException e) {
-      return failed(this).feedback("insecure-deserialization.invalidversion").build();
-    } catch (IllegalArgumentException e) {
-      return failed(this).feedback("insecure-deserialization.expired").build();
-    } catch (Exception e) {
-      return failed(this).feedback("insecure-deserialization.invalidversion").build();
+
+    } catch (IOException e) {
+      return failed(this).feedback("insecure-deserialization.invalidformat").build();
     }
 
     delay = (int) (after - before);
-    if (delay > 7000) {
-      return failed(this).build();
-    }
-    if (delay < 3000) {
+    if (delay > 7000 || delay < 3000) {
       return failed(this).build();
     }
     return success(this).build();
+  }
+
+  private boolean isValidTask(String taskId, String taskData) {
+    return true;
   }
 }
