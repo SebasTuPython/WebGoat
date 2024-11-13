@@ -19,7 +19,6 @@
  *
  * Source for this application is maintained at https://github.com/WebGoat/WebGoat, a repository for free software projects.
  */
-
 package org.owasp.webgoat.lessons.xss;
 
 import org.owasp.webgoat.container.assignments.AssignmentEndpoint;
@@ -41,14 +40,16 @@ import org.springframework.web.bind.annotation.RestController;
       "xss-reflected-6a-hint-4"
     })
 public class CrossSiteScriptingLesson6a extends AssignmentEndpoint {
-  @Autowired UserSessionData userSessionData;
+
+  @Autowired 
+  private UserSessionData userSessionData;
 
   @PostMapping("/CrossSiteScripting/attack6a")
   @ResponseBody
   public AttackResult completed(@RequestParam String DOMTestRoute) {
 
-    if (DOMTestRoute.matches("start\\.mvc#test(\\/|)")) {
-      // return )
+    // Validación más estricta para prevenir posibles inyecciones
+    if (DOMTestRoute != null && DOMTestRoute.matches("^start\\.mvc#test(/|)$")) {
       return success(this).feedback("xss-reflected-6a-success").build();
     } else {
       return failed(this).feedback("xss-reflected-6a-failure").build();
