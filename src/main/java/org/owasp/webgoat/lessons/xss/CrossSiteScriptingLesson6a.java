@@ -25,7 +25,6 @@ import org.owasp.webgoat.container.assignments.AssignmentEndpoint;
 import org.owasp.webgoat.container.assignments.AssignmentHints;
 import org.owasp.webgoat.container.assignments.AttackResult;
 import org.owasp.webgoat.container.session.UserSessionData;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseBody;
@@ -41,8 +40,12 @@ import org.springframework.web.bind.annotation.RestController;
     })
 public class CrossSiteScriptingLesson6a extends AssignmentEndpoint {
 
-  @Autowired 
-  private UserSessionData userSessionData;
+  private final UserSessionData userSessionData;
+
+  // Inyección de dependencia a través del constructor
+  public CrossSiteScriptingLesson6a(UserSessionData userSessionData) {
+    this.userSessionData = userSessionData;
+  }
 
   @PostMapping("/CrossSiteScripting/attack6a")
   @ResponseBody
