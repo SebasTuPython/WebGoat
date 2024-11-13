@@ -19,17 +19,14 @@
  *
  * Source for this application is maintained at https://github.com/WebGoat/WebGoat, a repository for free software projects.
  */
-
 package org.owasp.webgoat.webwolf;
-
-import static java.util.Comparator.comparing;
-import static org.springframework.http.MediaType.ALL_VALUE;
 
 import jakarta.servlet.http.HttpServletRequest;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Files;
+import java.nio.file.Path;
 import java.nio.file.attribute.FileTime;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
@@ -51,7 +48,6 @@ import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.servlet.ModelAndView;
 import org.springframework.web.servlet.view.RedirectView;
 
-/** Controller for uploading a file */
 @Controller
 @Slf4j
 public class FileServer {
@@ -85,33 +81,29 @@ public class FileServer {
       @RequestParam("file") MultipartFile multipartFile, Authentication authentication)
       throws IOException {
     var username = authentication.getName();
-    var destinationDir = new File(fileLocation, username);
-    
-    // Create directory for user files if it does not exist
-    if (!destinationDir.exists() && !destinationDir.mkdirs()) {
-      throw new IOException("Failed to create directory: " + destinationDir.getAbsolutePath());
+    var userDirectory = Path.of(fileLocation, username);
+
+    if (!Files.exists(userDirectory)) {
+      Files.createDirectories(userDirectory);
     }
 
-    // Validate filename to avoid path traversal attacks
     String originalFilename = multipartFile.getOriginalFilename();
     if (originalFilename == null || originalFilename.contains("..") || originalFilename.contains("/")) {
       throw new IllegalArgumentException("Invalid file name");
     }
 
-    // Save file
-    try (InputStream is = multipartFile.getInputStream()) {
-      var destinationFile = destinationDir.toPath().resolve(originalFilename).normalize();
-      
-      // Ensure the resolved path is within the user's directory
-      if (!destinationFile.startsWith(destinationDir.toPath())) {
-        throw new SecurityException("Invalid file path detected");
-      }
+    var destinationFile = userDirectory.resolve(originalFilename).normalize();
 
+    if (!destinationFile.startsWith(userDirectory)) {
+      throw new SecurityException("Invalid file path detected");
+    }
+
+    try (InputStream is = multipartFile.getInputStream()) {
       Files.deleteIfExists(destinationFile);
       Files.copy(is, destinationFile);
     }
 
-    log.debug("File saved to {}", new File(destinationDir, originalFilename));
+    log.debug("File saved to {}", destinationFile);
 
     return new ModelAndView(
         new RedirectView("files", true),
@@ -122,11 +114,11 @@ public class FileServer {
   public ModelAndView getFiles(
       HttpServletRequest request, Authentication authentication, TimeZone timezone) {
     String username = (authentication != null) ? authentication.getName() : "anonymous";
-    File destinationDir = new File(fileLocation, username);
+    var userDirectory = Path.of(fileLocation, username);
 
     ModelAndView modelAndView = new ModelAndView();
     modelAndView.setViewName("files");
-    File changeIndicatorFile = new File(destinationDir, username + "_changed");
+    var changeIndicatorFile = userDirectory.resolve(username + "_changed").toFile();
     if (changeIndicatorFile.exists()) {
       modelAndView.addObject("uploadSuccess", request.getParameter("uploadSuccess"));
       changeIndicatorFile.delete();
@@ -135,7 +127,7 @@ public class FileServer {
     record UploadedFile(String name, String size, String link, String creationTime) {}
 
     var uploadedFiles = new ArrayList<UploadedFile>();
-    File[] files = destinationDir.listFiles(File::isFile);
+    File[] files = userDirectory.toFile().listFiles(File::isFile);
     if (files != null) {
       for (File file : files) {
         String size = FileUtils.byteCountToDisplaySize(file.length());
@@ -147,7 +139,7 @@ public class FileServer {
 
     modelAndView.addObject(
         "files",
-        uploadedFiles.stream().sorted(Comparator.comparing(UploadedFile::creationTime).reversed()).toList());
+        uploadedFiles.stream().sorted(comparing(UploadedFile::creationTime).reversed()).toList());
     modelAndView.addObject("webwolf_url", "http://" + server + ":" + port + contextPath);
     return modelAndView;
   }
