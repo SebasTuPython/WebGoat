@@ -19,7 +19,6 @@
  *
  * Source for this application is maintained at https://github.com/WebGoat/WebGoat, a repository for free software projects.
  */
-
 package org.owasp.webgoat.lessons.sqlinjection.introduction;
 
 import java.sql.*;
@@ -77,25 +76,24 @@ public class SqlInjectionLesson5a extends AssignmentEndpoint {
           if (results.getRow() >= 6) {
             return success(this)
                 .feedback("sql-injection.5a.success")
-                .output("Your query was: " + query + EXPLANATION)
+                .output("Query executed successfully.")
                 .feedbackArgs(output.toString())
                 .build();
           } else {
-            return failed(this).output(output.toString() + "<br> Your query was: " + query).build();
+            return failed(this).output(output.toString() + "<br> Query did not return sufficient results.").build();
           }
         } else {
           return failed(this)
               .feedback("sql-injection.5a.no.results")
-              .output("Your query was: " + query)
+              .output("No results found.")
               .build();
         }
       } catch (SQLException sqle) {
-        return failed(this).output(sqle.getMessage() + "<br> Your query was: " + query).build();
+        return failed(this).output("An error occurred during query execution.").build();
       }
     } catch (Exception e) {
       return failed(this)
-          .output(
-              this.getClass().getName() + " : " + e.getMessage() + "<br> Your query was: " + query)
+          .output("An unexpected error occurred.")
           .build();
     }
   }
@@ -117,12 +115,10 @@ public class SqlInjectionLesson5a extends AssignmentEndpoint {
       results.beforeFirst();
 
       while (results.next()) {
-
         for (int i = 1; i < (numColumns + 1); i++) {
           t.append(results.getString(i));
           t.append(", ");
         }
-
         t.append("<br />");
       }
 
