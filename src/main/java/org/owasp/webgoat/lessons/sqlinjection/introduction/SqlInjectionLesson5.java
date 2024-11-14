@@ -78,14 +78,13 @@ public class SqlInjectionLesson5 extends AssignmentEndpoint {
         if (checkSolution(connection)) {
           return success(this).build();
         }
-        // Mensaje de error sin incluir datos controlados por el usuario directamente en el log
+        // Mensaje de error genérico, sin incluir datos controlados por el usuario
         return failed(this).output("Your query was executed but did not pass the test.").build();
       }
     } catch (Exception e) {
-      // Mensaje de error sin incluir la consulta del usuario directamente en el log
+      // Mensaje de error genérico sin incluir la consulta del usuario directamente en el log
       return failed(this)
-          .output(
-              this.getClass().getName() + " : Error occurred during query execution.")
+          .output("An error occurred during query execution.")
           .build();
     }
   }
