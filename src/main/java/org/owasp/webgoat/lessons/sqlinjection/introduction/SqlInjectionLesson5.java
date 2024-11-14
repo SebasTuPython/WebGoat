@@ -19,7 +19,6 @@
  *
  * Source for this application is maintained at https://github.com/WebGoat/WebGoat, a repository for free software projects.
  */
-
 package org.owasp.webgoat.lessons.sqlinjection.introduction;
 
 import jakarta.annotation.PostConstruct;
@@ -53,15 +52,13 @@ public class SqlInjectionLesson5 extends AssignmentEndpoint {
 
   @PostConstruct
   public void createUser() {
-    // HSQLDB does not support CREATE USER with IF NOT EXISTS so we need to do it in code (using
-    // DROP first will throw error if user does not exists)
     try (Connection connection = dataSource.getConnection()) {
       try (var statement =
           connection.prepareStatement("CREATE USER unauthorized_user PASSWORD test")) {
         statement.execute();
       }
     } catch (Exception e) {
-      // user already exists continue
+      // Usuario ya existe, continuar
     }
   }
 
@@ -81,12 +78,14 @@ public class SqlInjectionLesson5 extends AssignmentEndpoint {
         if (checkSolution(connection)) {
           return success(this).build();
         }
-        return failed(this).output("Your query was: " + query).build();
+        // Mensaje de error sin incluir datos controlados por el usuario directamente en el log
+        return failed(this).output("Your query was executed but did not pass the test.").build();
       }
     } catch (Exception e) {
+      // Mensaje de error sin incluir la consulta del usuario directamente en el log
       return failed(this)
           .output(
-              this.getClass().getName() + " : " + e.getMessage() + "<br> Your query was: " + query)
+              this.getClass().getName() + " : Error occurred during query execution.")
           .build();
     }
   }
