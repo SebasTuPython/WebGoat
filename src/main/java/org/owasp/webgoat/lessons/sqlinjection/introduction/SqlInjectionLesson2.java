@@ -67,15 +67,18 @@ public class SqlInjectionLesson2 extends AssignmentEndpoint {
 
       results.first();
 
-      if (results.getString("department").equals("Marketing")) {
-        output.append("<span class='feedback-positive'>" + query + "</span>");
+      if ("Marketing".equals(results.getString("department"))) {
+        output.append("<span class='feedback-positive'>Query executed successfully.</span>");
         output.append(SqlInjectionLesson8.generateTable(results));
         return success(this).feedback("sql-injection.2.success").output(output.toString()).build();
       } else {
-        return failed(this).feedback("sql-injection.2.failed").output(output.toString()).build();
+        return failed(this).feedback("sql-injection.2.failed").output("No valid results found.").build();
       }
     } catch (SQLException sqle) {
-      return failed(this).feedback("sql-injection.2.failed").output(sqle.getMessage()).build();
+      return failed(this)
+          .feedback("sql-injection.2.failed")
+          .output("An error occurred while executing the query.")
+          .build();
     }
   }
 }
